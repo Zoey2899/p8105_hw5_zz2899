@@ -1,0 +1,119 @@
+---
+title: "Homework 5"
+author: "Zoey Zhao"
+date: "11/19/2021"
+output: github_document
+---
+
+```{r message=FALSE}
+library(tidyverse)
+```
+
+## Problem 1
+
+For this problem, we are interested in the data released by _The Washington Post_ in homicides in 50 large U.S. cities. The code chunk below imports and cleans the data.
+
+```{r message=FALSE}
+homicide_data <- read_csv("https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv", na = c("", "Unknown"))%>%
+  mutate(
+    city_state = str_c(city, state),
+    resolution = case_when(
+      disposition == "Closed without arrest" ~ "Unsolved",
+      disposition == "Open/No arrest" ~ "Unsolved",
+      disposition == "Closed by arrest" ~ "Solved"
+    ))%>%
+  relocate(city_state)%>%
+  filter(city_state != "TulsaAL")
+```
+
+Let's focus on Baltimore, MD.
+
+```{r}
+baltimore_df <-
+  homicide_data%>%
+  filter(city_state == "BaltimoreMD")
+
+baltimore_summary <-
+  baltimore_df%>%
+  summarize(
+    unsolved = sum(resolution == "Unsolved"),
+    n = n())
+
+baltimore_test <-
+  prop.test(
+  x = baltimore_summary%>%pull(unsolved),
+  n = baltimore_summary%>%pull(n)
+)
+
+baltimore_test%>%
+  broom::tidy()
+```
+
+There are 64.6% of homicides in Baltimore are not solved, with a 95% CI 62.8%-66.3%.
+
+Let's try to iterate across the cities.
+1. Write a function
+```{r}
+prop_test_function <- function(city_df) {
+  city_summary <-
+  city_df%>%
+  summarize(
+    unsolved = sum(resolution == "Unsolved"),
+    n = n()
+    )
+  city_test <-
+  prop.test(
+  x = city_summary%>%pull(unsolved),
+  n = city_summary%>%pull(n)
+  )
+  
+  return(city_test)
+}
+```
+
+2. Iterate across all cities
+```{r}
+nested_df <-
+  homicide_data%>%
+  nest(data = uid:resolution)%>%
+  mutate(
+    test_results = map(data, prop_test_function),
+    tidy_results = map(test_results, broom::tidy)
+  )%>%
+  select(city_state, tidy_results)%>%
+  unnest(tidy_results)%>%
+  select(city_state, estimate, starts_with("conf"))
+
+nested_df
+```
+
+Create a plot that shows the estimates and CIs for each city, and organize cities according to the proportion of unsolved homicides.
+
+```{r}
+nested_df%>%
+  mutate(city_state = fct_reorder(city_state, estimate))%>%
+  ggplot(aes(x = city_state, y = estimate))+
+  geom_point()+
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))+
+  labs(title = "Proportion of Unsolved Homicides with CIs",
+       x = "Cities", 
+       y = "Proportion of unsolved homicides")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
