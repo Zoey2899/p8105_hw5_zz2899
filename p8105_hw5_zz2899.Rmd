@@ -102,7 +102,62 @@ nested_df%>%
 
 ```
 
+## Problem 2
 
+Start with a dataframe containing all file names.
+```{r}
+file_name <-
+  tibble(list.files("./data/zip_data/"))%>%
+           mutate(name = list.files("./data/zip_data/"))%>%
+           select(name)
+    
+```
+
+Iterate over file names and read in data for each subject and saving the result as a new variable in the dataframe.
+
+```{r message=FALSE}
+all_file <-
+  data_frame(name = pull(file_name, name)) %>%
+  mutate(data = map(name,      
+           ~ read_csv(file.path("./data/zip_data", .))
+           )
+         )
+
+unnest(all_file)
+```
+
+Tidy the result; manipulate file names to include control arm and subject ID, make sure weekly observations are “tidy”, and do any other tidying that’s necessary
+
+```{r}
+tidy_data<-
+  all_file%>%
+  unnest()%>%
+  separate(name, c("arm", "other"), sep = "_")%>%
+  mutate(subject_id = c(1:20),
+         arm = as.factor(case_when(arm == "con" ~ "Control",
+                         arm == "exp" ~ "Experimental")))%>%
+  relocate(subject_id)%>%
+  select(!other)%>%
+  pivot_longer(week_1:week_8, names_to = "week", names_prefix = "week_")
+
+tidy_data
+```
+
+Make a spaghetti plot showing observations on each subject over time, and comment on differences between groups.
+
+```{r}
+tidy_data%>%
+  ggplot(aes(x = week , y = value, color = arm))+
+  geom_point()+
+  geom_line(aes(group = subject_id))+
+  labs(title = "Spaghetti Plot of Observations over Time of 20 subjects",
+       y = "Observation",
+       x = "Time (week)")
+```
+
+Subjects in experimental group seems to have overall higher levels of observations than subjects in control group during the 8-week period of time. The level of observation in experimental group has a trend of growing over time, and the level of observation in control group does not have any obvious changes overall in 8 weeks.
+
+## Problem 3
 
 
 
